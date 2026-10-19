@@ -9,7 +9,7 @@ description = "Rule-based NLP pipeline for extracting breast cancer biomarker st
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-authors = [{ name = "Your Name" }]
+authors = [{ name = "Yinuo Shen" }]
 dependencies = [
     "pandas>=1.5",
     "numpy>=1.23",

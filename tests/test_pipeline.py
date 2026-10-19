@@ -1,15 +1,18 @@
 import math
 
 import pandas as pd
+import pytest
 
-from biomarker_nlp.pipeline import BiomarkerPipeline, aggregate_status
-from biomarker_nlp.registry import clean_mrn, load_registry_gold, normalize_ki67, normalize_registry_status
+from biomarker_nlp.evaluation import evaluate
+from biomarker_nlp.pipeline import BiomarkerPipeline, SourceColumns, aggregate_status, combine_text_sources, load_text_table
+from biomarker_nlp.registry import normalize_ki67, normalize_registry_status, prepare_gold_standard
+from biomarker_nlp.utils import clean_id
 
 
-def test_clean_mrn_strips_trailing_zero():
-    assert clean_mrn(12345.0) == "12345"
-    assert clean_mrn("00123") == "00123"
-    assert math.isnan(clean_mrn(float("nan")))
+def test_clean_id_strips_trailing_zero():
+    assert clean_id(12345.0) == "12345"
+    assert clean_id("00123") == "00123"
+    assert math.isnan(clean_id(float("nan")))
 
 
 def test_normalize_registry_status_codes():
@@ -31,60 +34,90 @@ def test_aggregate_status_prefers_positive():
     assert aggregate_status([None, float("nan")]) is None
 
 
-def test_load_registry_gold_normalizes_columns():
-    registry_df = pd.DataFrame(
+def test_load_text_table_cleans_ids_and_drops_empty_text():
+    df = pd.DataFrame(
         {
-            "Medical Record Number": [1001.0, 1002.0],
-            "Estrogen Receptor Summary": [1, 0],
-            "Progesterone Receptor Summary": [1, 9],
-            "HER2 Overall Summary": [0, 1],
-            "Ki-67": ["20", "XXX.9"],
+            "id": [1001.0, 1002.0],
+            "note": ["Some clinical text.", "   "],
         }
     )
-    gold = load_registry_gold(registry_df)
-    assert list(gold["MRN"]) == ["1001", "1002"]
-    assert list(gold["registry_er_status"]) == ["positive", "negative"]
-    assert gold["registry_ki67_value"].iloc[0] == 20.0
-    assert math.isnan(gold["registry_ki67_value"].iloc[1])
+    corpus = load_text_table(df, id_column="id", text_column="note")
+    assert list(corpus["patient_id"]) == ["1001"]
+    assert list(corpus.columns) == ["patient_id", "note_date", "text", "note_type", "note_source"]
 
 
-def test_pipeline_end_to_end_with_in_memory_frames():
-    notes_df = pd.DataFrame(
-        {
-            "MRN": [2001.0],
-            "contact_date": ["2025-01-01"],
-            "note_text": ["Routine follow-up visit, no new findings."],
-            "note_type": ["Office Visit Note"],
-        }
+def test_load_text_table_missing_column_raises():
+    df = pd.DataFrame({"id": [1], "note": ["text"]})
+    with pytest.raises(KeyError):
+        load_text_table(df, id_column="id", text_column="does_not_exist")
+
+
+def test_combine_text_sources_merges_multiple_tables():
+    notes = pd.DataFrame({"MRN": [1.0], "note_text": ["Follow-up visit, no concerns."]})
+    pathology = pd.DataFrame({"MRN": [1.0], "path_text": ["ER positive 90%. PR positive 60%. HER2 negative. Ki-67 15%."]})
+
+    corpus = combine_text_sources(
+        [
+            (notes, SourceColumns(id="MRN", text="note_text"), "Office Visit"),
+            (pathology, SourceColumns(id="MRN", text="path_text"), "Pathology Report"),
+        ]
     )
-    pathology_df = pd.DataFrame(
+    assert len(corpus) == 2
+    assert set(corpus["note_source"]) == {"Office Visit", "Pathology Report"}
+    assert list(corpus["patient_id"].unique()) == ["1"]
+
+
+def test_pipeline_run_from_table_extracts_and_aggregates():
+    df = pd.DataFrame(
         {
-            "MRN": [2001.0],
-            "RESULT_TIME": ["2025-01-02"],
-            "PATH_REPORT_TEXT": [
-                "ER positive 90%. PR positive 60%. HER2 negative (IHC 1+). Ki-67 15%."
+            "MRN": [2001.0, 2001.0],
+            "text": [
+                "ER positive 90%. PR positive 60%. HER2 negative (IHC 1+). Ki-67 15%.",
+                "Follow-up visit, no new findings.",
             ],
-            "REPORT_TYPE": ["Surgical Pathology"],
-        }
-    )
-    registry_df = pd.DataFrame(
-        {
-            "Medical Record Number": [2001.0],
-            "Estrogen Receptor Summary": [1],
-            "Progesterone Receptor Summary": [1],
-            "HER2 Overall Summary": [0],
-            "Ki-67": ["15"],
         }
     )
 
     pipeline = BiomarkerPipeline()
-    result = pipeline.run(notes_df, pathology_df, registry_df)
+    result = pipeline.run_from_table(df, id_column="MRN", text_column="text")
 
+    assert len(result["note_level"]) == 2
     patient_row = result["patient_level"].iloc[0]
-    assert patient_row["MRN"] == "2001"
+    assert patient_row["patient_id"] == "2001"
     assert patient_row["nlp_er_status"] == "positive"
     assert patient_row["nlp_her2_status"] == "negative"
+    assert patient_row["nlp_ki67_value"] == 15.0
 
-    analysis_row = result["analysis"].iloc[0]
-    assert analysis_row["registry_er_status"] == "positive"
-    assert analysis_row["nlp_er_status"] == analysis_row["registry_er_status"]
+
+def test_evaluate_scores_extraction_against_gold_standard():
+    df = pd.DataFrame(
+        {
+            "MRN": [3001.0],
+            "text": ["ER positive 90%. PR positive 60%. HER2 negative (IHC 1+). Ki-67 15%."],
+        }
+    )
+    pipeline = BiomarkerPipeline()
+    result = pipeline.run_from_table(df, id_column="MRN", text_column="text")
+
+    gold_df = pd.DataFrame(
+        {
+            "Medical Record Number": [3001.0],
+            "ER": [1],
+            "PR": [1],
+            "HER2": [0],
+            "Ki67": ["15"],
+        }
+    )
+    gold = prepare_gold_standard(
+        gold_df,
+        id_column="Medical Record Number",
+        er_column="ER",
+        pr_column="PR",
+        her2_column="HER2",
+        ki67_column="Ki67",
+    )
+
+    report = evaluate(result["patient_level"], gold)
+    assert report["ER"]["n"] == 1
+    assert report["ER"]["precision"] == 1.0
+    assert report["Ki-67"]["mae"] == 0.0

@@ -1,57 +1,91 @@
-"""End-to-end orchestration: load clinical text + registry data, run the
-NLP extractors, aggregate to patient level, and (optionally) join against
-gold-standard registry labels for evaluation.
+"""Core extraction pipeline: turn one or more tables of clinical text into
+per-note and per-patient biomarker calls.
+
+This module has no dependency on any gold-standard/registry data — it is
+the standalone, reusable part of the package. Registry-based evaluation
+(for anyone who *does* have gold-standard labels to validate against)
+lives separately in `biomarker_nlp.evaluation`.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
+from typing import Iterable, List, Optional, Tuple
 
 import pandas as pd
 
 from .extractors import extract_biomarkers
-from .registry import DEFAULT_REGISTRY_COLUMNS, clean_mrn, load_registry_gold
-
-DEFAULT_NOTES_COLUMNS = {
-    "mrn": "MRN",
-    "date": "contact_date",
-    "text": "note_text",
-    "type": "note_type",
-}
-
-DEFAULT_PATHOLOGY_COLUMNS = {
-    "mrn": "MRN",
-    "date": "RESULT_TIME",
-    "text": "PATH_REPORT_TEXT",
-    "type": "REPORT_TYPE",
-}
+from .utils import clean_id, clean_text_series
 
 
 @dataclass
-class ColumnMap:
-    """Configurable column names, so the pipeline can be pointed at a
-    different EHR/registry export without touching any code.
+class SourceColumns:
+    """Maps the columns of one input table to the pipeline's standard schema.
+
+    id: column holding the patient identifier
+    text: column holding the free text to run extraction on
+    date: optional column holding the note/report date
+    type: optional column holding a note-type label (e.g. "Pathology Report")
     """
 
-    notes_columns: dict = field(default_factory=lambda: dict(DEFAULT_NOTES_COLUMNS))
-    pathology_columns: dict = field(default_factory=lambda: dict(DEFAULT_PATHOLOGY_COLUMNS))
-    registry_columns: dict = field(default_factory=lambda: dict(DEFAULT_REGISTRY_COLUMNS))
-    notes_sheet: str = "Notes"
-    pathology_sheet_contains: str = "Pathology"
-    registry_sheet_contains: str = "Tumor"
+    id: str
+    text: str
+    date: Optional[str] = None
+    type: Optional[str] = None
 
 
-def _select_sheet(xls: pd.ExcelFile, contains: str) -> str:
-    matches = [s for s in xls.sheet_names if contains.lower() in s.lower()]
-    if not matches:
-        raise ValueError(f"No sheet name containing '{contains}' found in workbook: {xls.sheet_names}")
-    return matches[0]
+def _standardize_source(df: pd.DataFrame, columns: SourceColumns, source_label: str) -> pd.DataFrame:
+    if columns.id not in df.columns:
+        raise KeyError(f"id column '{columns.id}' not found in input table (columns: {list(df.columns)})")
+    if columns.text not in df.columns:
+        raise KeyError(f"text column '{columns.text}' not found in input table (columns: {list(df.columns)})")
+
+    out = pd.DataFrame()
+    out["patient_id"] = df[columns.id]
+    out["note_date"] = df[columns.date] if columns.date else pd.NA
+    out["text"] = df[columns.text]
+    out["note_type"] = df[columns.type] if columns.type else pd.NA
+    out["note_source"] = source_label
+    return out
+
+
+def combine_text_sources(sources: Iterable[Tuple[pd.DataFrame, SourceColumns, str]]) -> pd.DataFrame:
+    """Combine one or more input tables (e.g. office-visit notes and
+    pathology reports, each with their own column names) into a single
+    standardized text corpus: patient_id, note_date, text, note_type,
+    note_source.
+
+    Rows with empty/missing text are dropped.
+    """
+    frames = [_standardize_source(df, columns, label) for df, columns, label in sources]
+    if not frames:
+        raise ValueError("combine_text_sources requires at least one source")
+
+    combined = pd.concat(frames, ignore_index=True)
+    combined["patient_id"] = combined["patient_id"].apply(clean_id)
+    combined["text"] = clean_text_series(combined["text"])
+    combined = combined[combined["text"].str.len() > 0].reset_index(drop=True)
+    return combined
+
+
+def load_text_table(
+    df: pd.DataFrame,
+    id_column: str,
+    text_column: str,
+    date_column: Optional[str] = None,
+    type_column: Optional[str] = None,
+    source_label: str = "note",
+) -> pd.DataFrame:
+    """Convenience wrapper around combine_text_sources for the common case
+    of a single input table (e.g. one CSV of notes).
+    """
+    columns = SourceColumns(id=id_column, text=text_column, date=date_column, type=type_column)
+    return combine_text_sources([(df, columns, source_label)])
 
 
 def aggregate_status(values) -> Optional[str]:
     """Collapse multiple note-level statuses for one patient into a single
-    label, preferring positive > equivocal > negative > unknown/missing.
+    label, preferring positive > equivocal > negative.
     """
     values = [v for v in values if pd.notna(v)]
     if "positive" in values:
@@ -64,64 +98,26 @@ def aggregate_status(values) -> Optional[str]:
 
 
 class BiomarkerPipeline:
-    """Runs the ER/PR/HER2/Ki-67 extraction pipeline over clinical text and
-    optionally validates against gold-standard registry labels.
+    """Runs the ER/PR/HER2/Ki-67 extractors over a standardized text corpus
+    and aggregates note-level results to one row per patient.
     """
 
-    def __init__(self, column_map: Optional[ColumnMap] = None):
-        self.column_map = column_map or ColumnMap()
-
-    def load_workbook(self, path: str) -> dict:
-        """Load notes, pathology, and registry sheets from an Excel workbook."""
-        cm = self.column_map
-        xls = pd.ExcelFile(path)
-
-        notes = pd.read_excel(path, sheet_name=cm.notes_sheet)
-        pathology = pd.read_excel(path, sheet_name=_select_sheet(xls, cm.pathology_sheet_contains))
-        registry = pd.read_excel(path, sheet_name=_select_sheet(xls, cm.registry_sheet_contains))
-
-        return {"notes": notes, "pathology": pathology, "registry": registry}
-
-    def build_text_corpus(self, notes_df: pd.DataFrame, pathology_df: pd.DataFrame) -> pd.DataFrame:
-        """Combine notes + pathology reports into one long text corpus:
-        columns MRN, note_date, text, note_type, note_source.
+    def extract(self, corpus: pd.DataFrame) -> pd.DataFrame:
+        """Apply the regex extractors to every row of a corpus that has a
+        'text' column. Returns the corpus with nlp_er_status, nlp_pr_status,
+        nlp_her2_status, nlp_ki67_value columns appended.
         """
-        cm = self.column_map
+        if "text" not in corpus.columns:
+            raise KeyError("corpus must have a 'text' column (use load_text_table/combine_text_sources)")
 
-        notes_nlp = notes_df[list(cm.notes_columns.values())].copy()
-        notes_nlp.columns = ["MRN", "note_date", "text", "note_type"]
-        notes_nlp["note_source"] = "Office Visit"
+        extracted = corpus["text"].apply(extract_biomarkers)
+        extracted_df = pd.DataFrame(extracted.tolist(), index=corpus.index)
+        return pd.concat([corpus, extracted_df], axis=1)
 
-        path_nlp = pathology_df[list(cm.pathology_columns.values())].copy()
-        path_nlp.columns = ["MRN", "note_date", "text", "note_type"]
-        path_nlp["note_source"] = "Pathology Report"
-
-        all_text = pd.concat([notes_nlp, path_nlp], ignore_index=True)
-        all_text["MRN"] = all_text["MRN"].apply(clean_mrn)
-
-        all_text["text"] = (
-            all_text["text"]
-            .fillna("")
-            .astype(str)
-            .str.replace("\r", " ", regex=False)
-            .str.replace("\n", " ", regex=False)
-            .str.replace("\t", " ", regex=False)
-            .str.strip()
-        )
-        all_text = all_text[all_text["text"].str.len() > 0].reset_index(drop=True)
-
-        return all_text
-
-    def run_note_level_extraction(self, all_text: pd.DataFrame) -> pd.DataFrame:
-        """Apply the regex extractors to every row of the text corpus."""
-        extracted = all_text["text"].apply(extract_biomarkers)
-        extracted_df = pd.DataFrame(extracted.tolist(), index=all_text.index)
-        return pd.concat([all_text, extracted_df], axis=1)
-
-    def aggregate_to_patient_level(self, note_level_results: pd.DataFrame) -> pd.DataFrame:
-        """Collapse note-level extractions to one row per patient (MRN)."""
+    def aggregate(self, note_level: pd.DataFrame, id_column: str = "patient_id") -> pd.DataFrame:
+        """Collapse note-level extractions to one row per patient."""
         return (
-            note_level_results.groupby("MRN")
+            note_level.groupby(id_column)
             .agg(
                 {
                     "nlp_er_status": aggregate_status,
@@ -133,35 +129,37 @@ class BiomarkerPipeline:
             .reset_index()
         )
 
-    def run(
-        self,
-        notes_df: pd.DataFrame,
-        pathology_df: pd.DataFrame,
-        registry_df: Optional[pd.DataFrame] = None,
-    ) -> dict:
-        """Run the full pipeline: build corpus -> extract -> aggregate ->
-        (optionally) join with registry gold-standard labels.
+    def run(self, corpus: pd.DataFrame, id_column: str = "patient_id") -> dict:
+        """Run extraction + aggregation on an already-standardized corpus
+        (e.g. one built with combine_text_sources/load_text_table).
 
-        Returns a dict with keys: note_level, patient_level, analysis
-        (analysis is None if no registry_df was supplied).
+        Returns {"note_level": ..., "patient_level": ...}.
         """
-        all_text = self.build_text_corpus(notes_df, pathology_df)
-        note_level = self.run_note_level_extraction(all_text)
-        patient_level = self.aggregate_to_patient_level(note_level)
+        note_level = self.extract(corpus)
+        patient_level = self.aggregate(note_level, id_column=id_column)
+        return {"note_level": note_level, "patient_level": patient_level}
 
-        analysis = None
-        if registry_df is not None:
-            registry_gold = load_registry_gold(registry_df, self.column_map.registry_columns)
-            analysis = patient_level.merge(registry_gold, on="MRN", how="inner")
+    def run_from_table(
+        self,
+        df: pd.DataFrame,
+        id_column: str,
+        text_column: str,
+        date_column: Optional[str] = None,
+        type_column: Optional[str] = None,
+        source_label: str = "note",
+    ) -> dict:
+        """Convenience: build the corpus from a single input table and run
+        the pipeline in one call. This is the typical entry point when you
+        have one table of notes/reports with a patient ID column and a
+        free-text column.
+        """
+        corpus = load_text_table(df, id_column, text_column, date_column, type_column, source_label)
+        return self.run(corpus)
 
-        return {
-            "note_level": note_level,
-            "patient_level": patient_level,
-            "analysis": analysis,
-        }
-
-    def run_from_excel(self, path: str, include_registry: bool = True) -> dict:
-        """Convenience wrapper: load an Excel workbook and run the full pipeline."""
-        data = self.load_workbook(path)
-        registry_df = data["registry"] if include_registry else None
-        return self.run(data["notes"], data["pathology"], registry_df)
+    def run_from_sources(self, sources: List[Tuple[pd.DataFrame, SourceColumns, str]]) -> dict:
+        """Convenience: combine multiple input tables (e.g. notes +
+        pathology reports, each with different column names) and run the
+        pipeline in one call.
+        """
+        corpus = combine_text_sources(sources)
+        return self.run(corpus)

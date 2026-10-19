@@ -1,0 +1,41 @@
+MRN,note_date,note_type,text
+SYN100000,2025-01-15,Surgical Pathology,"Invasive ductal carcinoma. Estrogen receptor: positive, 90% of tumor cell nuclei. Progesterone receptor: positive, 60%. HER2: negative (IHC 1+). Ki-67 proliferation index: 15%."
+SYN100000,2025-01-20,Office Visit Note,New patient consult for recently diagnosed breast cancer. Reviewed outside pathology; will obtain repeat biomarker testing at our institution.
+SYN100001,2025-01-15,Surgical Pathology,"Triple negative invasive ductal carcinoma. ER negative, PR negative, HER2 0. Ki-67 70%."
+SYN100001,2025-01-20,Office Visit Note,"Routine oncology follow-up visit. Reviewed prior pathology report. Patient reports mild fatigue, otherwise doing well."
+SYN100002,2025-01-15,Surgical Pathology,"Invasive ductal carcinoma, grade 2. Estrogen receptor positive (95%). Progesterone receptor negative. HER2 2+ by IHC, equivocal; reflex FISH not amplified, negative. Ki67 proliferation index approximately 20%."
+SYN100002,2025-01-20,Office Visit Note,New patient consult for recently diagnosed breast cancer. Reviewed outside pathology; will obtain repeat biomarker testing at our institution.
+SYN100003,2025-01-15,Surgical Pathology,"Invasive ductal carcinoma. Estrogen receptor: positive, 90% of tumor cell nuclei. Progesterone receptor: positive, 60%. HER2: negative (IHC 1+). Ki-67 proliferation index: 15%."
+SYN100003,2025-01-20,Office Visit Note,New patient consult for recently diagnosed breast cancer. Reviewed outside pathology; will obtain repeat biomarker testing at our institution.
+SYN100004,2025-01-15,Surgical Pathology,"Invasive lobular carcinoma. ER negative (<1%). PR negative (0%). HER2: 3+ by IHC, positive. Ki-67: 45%."
+SYN100004,2025-01-20,Office Visit Note,"Patient seen in clinic for follow-up after biopsy. Discussed pathology results and treatment planning. Tolerating therapy well, no new concerns today."
+SYN100005,2025-01-15,Surgical Pathology,"Invasive ductal carcinoma, grade 2. Estrogen receptor positive (95%). Progesterone receptor negative. HER2 2+ by IHC, equivocal; reflex FISH not amplified, negative. Ki67 proliferation index approximately 20%."
+SYN100005,2025-01-20,Office Visit Note,New patient consult for recently diagnosed breast cancer. Reviewed outside pathology; will obtain repeat biomarker testing at our institution.
+SYN100006,2025-01-15,Surgical Pathology,"Triple negative invasive ductal carcinoma. ER negative, PR negative, HER2 0. Ki-67 70%."
+SYN100006,2025-01-20,Office Visit Note,New patient consult for recently diagnosed breast cancer. Reviewed outside pathology; will obtain repeat biomarker testing at our institution.
+SYN100007,2025-01-15,Surgical Pathology,"Triple negative invasive ductal carcinoma. ER negative, PR negative, HER2 0. Ki-67 70%."
+SYN100007,2025-01-20,Office Visit Note,New patient consult for recently diagnosed breast cancer. Reviewed outside pathology; will obtain repeat biomarker testing at our institution.
+SYN100008,2025-01-15,Surgical Pathology,"Invasive ductal carcinoma, grade 2. Estrogen receptor positive (95%). Progesterone receptor negative. HER2 2+ by IHC, equivocal; reflex FISH not amplified, negative. Ki67 proliferation index approximately 20%."
+SYN100008,2025-01-20,Office Visit Note,"Patient seen in clinic for follow-up after biopsy. Discussed pathology results and treatment planning. Tolerating therapy well, no new concerns today."
+SYN100009,2025-01-15,Surgical Pathology,"Invasive ductal carcinoma. ER positive 80%, PR positive 30%. HER2 IHC 3+, FISH amplified, positive. Ki-67 index 25%."
+SYN100009,2025-01-20,Office Visit Note,"Routine oncology follow-up visit. Reviewed prior pathology report. Patient reports mild fatigue, otherwise doing well."
+SYN100010,2025-01-15,Surgical Pathology,"Invasive ductal carcinoma, grade 2. Estrogen receptor positive (95%). Progesterone receptor negative. HER2 2+ by IHC, equivocal; reflex FISH not amplified, negative. Ki67 proliferation index approximately 20%."
+SYN100010,2025-01-20,Office Visit Note,"Routine oncology follow-up visit. Reviewed prior pathology report. Patient reports mild fatigue, otherwise doing well."
+SYN100011,2025-01-15,Surgical Pathology,"Invasive ductal carcinoma. Estrogen receptor: positive, 90% of tumor cell nuclei. Progesterone receptor: positive, 60%. HER2: negative (IHC 1+). Ki-67 proliferation index: 15%."
+SYN100011,2025-01-20,Office Visit Note,New patient consult for recently diagnosed breast cancer. Reviewed outside pathology; will obtain repeat biomarker testing at our institution.
+SYN100012,2025-01-15,Surgical Pathology,"Triple negative invasive ductal carcinoma. ER negative, PR negative, HER2 0. Ki-67 70%."
+SYN100012,2025-01-20,Office Visit Note,"Routine oncology follow-up visit. Reviewed prior pathology report. Patient reports mild fatigue, otherwise doing well."
+SYN100013,2025-01-15,Surgical Pathology,"Invasive ductal carcinoma, grade 2. Estrogen receptor positive (95%). Progesterone receptor negative. HER2 2+ by IHC, equivocal; reflex FISH not amplified, negative. Ki67 proliferation index approximately 20%."
+SYN100013,2025-01-20,Office Visit Note,New patient consult for recently diagnosed breast cancer. Reviewed outside pathology; will obtain repeat biomarker testing at our institution.
+SYN100014,2025-01-15,Surgical Pathology,"Invasive ductal carcinoma, grade 2. Estrogen receptor positive (95%). Progesterone receptor negative. HER2 2+ by IHC, equivocal; reflex FISH not amplified, negative. Ki67 proliferation index approximately 20%."
+SYN100014,2025-01-20,Office Visit Note,"Routine oncology follow-up visit. Reviewed prior pathology report. Patient reports mild fatigue, otherwise doing well."
+SYN100015,2025-01-15,Surgical Pathology,"Invasive ductal carcinoma, grade 2. Estrogen receptor positive (95%). Progesterone receptor negative. HER2 2+ by IHC, equivocal; reflex FISH not amplified, negative. Ki67 proliferation index approximately 20%."
+SYN100015,2025-01-20,Office Visit Note,"Patient seen in clinic for follow-up after biopsy. Discussed pathology results and treatment planning. Tolerating therapy well, no new concerns today."
+SYN100016,2025-01-15,Surgical Pathology,"Invasive ductal carcinoma. Estrogen receptor: positive, 90% of tumor cell nuclei. Progesterone receptor: positive, 60%. HER2: negative (IHC 1+). Ki-67 proliferation index: 15%."
+SYN100016,2025-01-20,Office Visit Note,"Routine oncology follow-up visit. Reviewed prior pathology report. Patient reports mild fatigue, otherwise doing well."
+SYN100017,2025-01-15,Surgical Pathology,"Invasive ductal carcinoma. ER positive 80%, PR positive 30%. HER2 IHC 3+, FISH amplified, positive. Ki-67 index 25%."
+SYN100017,2025-01-20,Office Visit Note,"Patient seen in clinic for follow-up after biopsy. Discussed pathology results and treatment planning. Tolerating therapy well, no new concerns today."
+SYN100018,2025-01-15,Surgical Pathology,"Invasive ductal carcinoma. ER positive 80%, PR positive 30%. HER2 IHC 3+, FISH amplified, positive. Ki-67 index 25%."
+SYN100018,2025-01-20,Office Visit Note,New patient consult for recently diagnosed breast cancer. Reviewed outside pathology; will obtain repeat biomarker testing at our institution.
+SYN100019,2025-01-15,Surgical Pathology,"Invasive lobular carcinoma. ER negative (<1%). PR negative (0%). HER2: 3+ by IHC, positive. Ki-67: 45%."
+SYN100019,2025-01-20,Office Visit Note,"Routine oncology follow-up visit. Reviewed prior pathology report. Patient reports mild fatigue, otherwise doing well."

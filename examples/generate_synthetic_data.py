@@ -1,20 +1,26 @@
-"""Generate a small synthetic Excel workbook with the same sheet/column
-schema the pipeline expects, so the pipeline can be demoed and tested
-without any real patient data.
+"""Generate small synthetic datasets for demoing the pipeline, so it can be
+tried end-to-end without any real patient data.
+
+Produces two files:
+  - synthetic_notes.csv: one row per note/report, the input to `extract`.
+  - synthetic_gold_standard.csv: matching gold-standard labels, only needed
+    if you want to try the optional `evaluate` step.
 
 Usage:
-    python examples/generate_synthetic_data.py [output_path]
+    python examples/generate_synthetic_data.py [output_dir]
 """
 
 from __future__ import annotations
 
+import os
 import sys
 
 import numpy as np
 import pandas as pd
 
+# (pathology_text, gold_er, gold_pr, gold_her2, gold_ki67) using the common
+# registry convention: 1 = positive, 0 = negative.
 SYNTHETIC_PATHOLOGY_TEMPLATES = [
-    # (text, registry_er, registry_pr, registry_her2, registry_ki67)
     (
         "Invasive ductal carcinoma. Estrogen receptor: positive, 90% of tumor "
         "cell nuclei. Progesterone receptor: positive, 60%. HER2: negative "
@@ -34,13 +40,13 @@ SYNTHETIC_PATHOLOGY_TEMPLATES = [
         1, 0, 0, "20",
     ),
     (
-        "Triple negative invasive ductal carcinoma. ER-, PR-, HER2 0. "
-        "Ki-67 70%.",
+        "Triple negative invasive ductal carcinoma. ER negative, PR "
+        "negative, HER2 0. Ki-67 70%.",
         0, 0, 0, "70",
     ),
     (
-        "Invasive ductal carcinoma. ER pos 80%, PR pos 30%. HER2 IHC 3+, "
-        "FISH amplified, positive. Ki-67 index 25%.",
+        "Invasive ductal carcinoma. ER positive 80%, PR positive 30%. HER2 "
+        "IHC 3+, FISH amplified, positive. Ki-67 index 25%.",
         1, 1, 1, "25",
     ),
 ]
@@ -57,66 +63,64 @@ OFFICE_VISIT_NOTES = [
 ]
 
 
-def generate(n_patients: int = 20, seed: int = 42) -> dict:
+def generate(n_patients: int = 20, seed: int = 42) -> tuple[pd.DataFrame, pd.DataFrame]:
     rng = np.random.default_rng(seed)
 
     mrns = [f"SYN{100000 + i}" for i in range(n_patients)]
 
-    cohort = pd.DataFrame({"Medical Record Number": mrns, "Enrollment Status": "Enrolled"})
-
-    notes_rows = []
-    path_rows = []
-    registry_rows = []
+    note_rows = []
+    gold_rows = []
 
     for mrn in mrns:
         template_idx = rng.integers(0, len(SYNTHETIC_PATHOLOGY_TEMPLATES))
         text, er, pr, her2, ki67 = SYNTHETIC_PATHOLOGY_TEMPLATES[template_idx]
 
-        path_rows.append(
+        note_rows.append(
             {
                 "MRN": mrn,
-                "RESULT_TIME": "2025-01-15",
-                "PATH_REPORT_TEXT": text,
-                "REPORT_TYPE": "Surgical Pathology",
+                "note_date": "2025-01-15",
+                "note_type": "Surgical Pathology",
+                "text": text,
             }
         )
-
-        registry_rows.append(
-            {
-                "Medical Record Number": mrn,
-                "Estrogen Receptor Summary": er,
-                "Progesterone Receptor Summary": pr,
-                "HER2 Overall Summary": her2,
-                "Ki-67": ki67,
-            }
-        )
-
-        note_text = OFFICE_VISIT_NOTES[rng.integers(0, len(OFFICE_VISIT_NOTES))]
-        notes_rows.append(
+        note_rows.append(
             {
                 "MRN": mrn,
-                "contact_date": "2025-01-20",
-                "note_text": note_text,
+                "note_date": "2025-01-20",
                 "note_type": "Office Visit Note",
+                "text": OFFICE_VISIT_NOTES[rng.integers(0, len(OFFICE_VISIT_NOTES))],
             }
         )
 
-    notes = pd.DataFrame(notes_rows)
-    pathology = pd.DataFrame(path_rows)
-    registry = pd.DataFrame(registry_rows)
+        gold_rows.append(
+            {
+                "MRN": mrn,
+                "ER_Summary": er,
+                "PR_Summary": pr,
+                "HER2_Summary": her2,
+                "Ki67": ki67,
+            }
+        )
 
-    return {"Cohort": cohort, "Notes": notes, "Pathology": pathology, "Tumor Registry": registry}
+    notes_df = pd.DataFrame(note_rows)
+    gold_df = pd.DataFrame(gold_rows)
+    return notes_df, gold_df
 
 
 def main() -> None:
-    output_path = sys.argv[1] if len(sys.argv) > 1 else "examples/synthetic_data.xlsx"
+    output_dir = sys.argv[1] if len(sys.argv) > 1 else "examples"
+    os.makedirs(output_dir, exist_ok=True)
 
-    sheets = generate()
-    with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
-        for sheet_name, df in sheets.items():
-            df.to_excel(writer, sheet_name=sheet_name, index=False)
+    notes_df, gold_df = generate()
 
-    print(f"Wrote synthetic workbook to {output_path}")
+    notes_path = os.path.join(output_dir, "synthetic_notes.csv")
+    gold_path = os.path.join(output_dir, "synthetic_gold_standard.csv")
+
+    notes_df.to_csv(notes_path, index=False)
+    gold_df.to_csv(gold_path, index=False)
+
+    print(f"Wrote {len(notes_df)} synthetic notes to {notes_path}")
+    print(f"Wrote {len(gold_df)} synthetic gold-standard rows to {gold_path}")
 
 
 if __name__ == "__main__":

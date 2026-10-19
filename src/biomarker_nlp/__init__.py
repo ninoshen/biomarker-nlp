@@ -3,8 +3,9 @@
 """
 
 from .extractors import extract_biomarkers, extract_er, extract_pr, extract_her2, extract_ki67
-from .pipeline import BiomarkerPipeline, ColumnMap
-from .evaluation import evaluate_all
+from .pipeline import BiomarkerPipeline, SourceColumns, combine_text_sources, load_text_table
+from .evaluation import evaluate, evaluate_all
+from .registry import prepare_gold_standard
 
 __all__ = [
     "extract_biomarkers",
@@ -13,8 +14,12 @@ __all__ = [
     "extract_her2",
     "extract_ki67",
     "BiomarkerPipeline",
-    "ColumnMap",
+    "SourceColumns",
+    "combine_text_sources",
+    "load_text_table",
+    "evaluate",
     "evaluate_all",
+    "prepare_gold_standard",
 ]
 
 __version__ = "0.1.0"

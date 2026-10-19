@@ -1,6 +1,7 @@
-"""Evaluate NLP-extracted biomarker status against gold-standard registry
-labels: precision/recall/F1/confusion matrix for ER, PR, HER2, and
-agreement statistics (MAE, correlation) for Ki-67.
+"""Optional: score extraction pipeline output against gold-standard
+biomarker labels (e.g. from a cancer registry). Not required to run the
+core extraction pipeline — only needed if you have gold-standard data to
+validate against.
 """
 
 from __future__ import annotations
@@ -27,8 +28,8 @@ def evaluate_classification(
     """Compute precision/recall/F1/confusion matrix for one binary biomarker
     (ER, PR, or HER2), treating 'positive' as the positive class.
 
-    Rows where the registry label isn't 'positive'/'negative' are excluded
-    (unknown/missing gold-standard can't be scored against).
+    Rows where the gold-standard label isn't 'positive'/'negative' are
+    excluded (unknown/missing gold-standard can't be scored against).
     """
     df = analysis_df[analysis_df[registry_col].isin(["positive", "negative"])].copy()
 
@@ -60,7 +61,7 @@ def evaluate_ki67(
     nlp_col: str = "nlp_ki67_value",
     registry_col: str = "registry_ki67_value",
 ) -> dict:
-    """Compute agreement statistics between NLP-extracted and registry
+    """Compute agreement statistics between NLP-extracted and gold-standard
     Ki-67 proliferation index values.
     """
     df = analysis_df[analysis_df[registry_col].notna() & analysis_df[nlp_col].notna()].copy()
@@ -81,12 +82,14 @@ def evaluate_ki67(
 
 
 def evaluate_all(analysis_df: pd.DataFrame) -> dict:
-    """Run the standard evaluation suite (ER, PR, HER2, Ki-67) on a merged
-    analysis dataframe (patient-level NLP results joined with registry gold).
+    """Run the standard evaluation suite (ER, PR, HER2, Ki-67) on a
+    dataframe that already has both nlp_* and registry_* columns (i.e.
+    patient-level extraction output merged with prepare_gold_standard()
+    output).
 
-    HER2 treats 'equivocal' NLP predictions as negative, matching the
-    original validation protocol, since equivocal cases route to reflex
-    ISH testing rather than being called positive outright.
+    HER2 treats 'equivocal' NLP predictions as negative, since equivocal
+    IHC results route to reflex ISH testing rather than being called
+    positive outright.
     """
     return {
         "ER": evaluate_classification(analysis_df, "nlp_er_status", "registry_er_status"),
@@ -98,8 +101,20 @@ def evaluate_all(analysis_df: pd.DataFrame) -> dict:
     }
 
 
+def evaluate(
+    patient_level: pd.DataFrame,
+    gold_standard: pd.DataFrame,
+    id_column: str = "patient_id",
+) -> dict:
+    """Join extraction pipeline output with prepared gold-standard labels
+    on id_column and run the full evaluation suite.
+    """
+    analysis_df = patient_level.merge(gold_standard, on=id_column, how="inner")
+    return evaluate_all(analysis_df)
+
+
 def format_report(report: dict) -> str:
-    """Render an evaluate_all() report as a markdown summary table."""
+    """Render an evaluate()/evaluate_all() report as a markdown summary table."""
     lines = [
         "| Biomarker | Cases | TP | FP | FN | TN | Precision | Recall | F1 |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
